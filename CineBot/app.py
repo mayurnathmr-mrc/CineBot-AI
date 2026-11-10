@@ -23,7 +23,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-OLLAMA_URL = os.getenv("OLLAMA_PROXY_URL", "http://localhost:11434/api/chat")
+OLLAMA_URL = os.getenv("OLLAMA_URL", os.getenv("OLLAMA_PROXY_URL", "http://localhost:11434/api/chat")).rstrip("/")
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "")
+OLLAMA_HEADERS = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
+OLLAMA_TAGS_URL = os.getenv("OLLAMA_TAGS_URL", OLLAMA_URL.rsplit("/api/chat", 1)[0] + "/api/tags")
 MODEL = "qwen2.5:1.5b"
 
 

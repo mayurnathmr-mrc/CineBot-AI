@@ -1115,11 +1115,15 @@ if user_input:
 
             try:
                 response = requests.post(
-                    OLLAMA_URL,
-                    json={
-                        "model": MODEL,
-                        "messages": ollama_messages,
-                        "stream": False
+    OLLAMA_URL,
+    json={
+        "model": MODEL,
+        "messages": ollama_messages,
+        "stream": False
+    },
+    headers=OLLAMA_HEADERS,
+    timeout=240
+)
                     },
                     timeout=180
                 )

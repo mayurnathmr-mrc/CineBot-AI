@@ -1124,9 +1124,6 @@ if user_input:
     headers=OLLAMA_HEADERS,
     timeout=240
 )
-                    },
-                    timeout=180
-                )
 
                 response.raise_for_status()
                 answer = response.json()["message"]["content"]

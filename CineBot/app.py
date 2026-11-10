@@ -23,7 +23,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-OLLAMA_URL = "http://localhost:11434/api/chat"
+OLLAMA_URL = os.getenv("OLLAMA_PROXY_URL", "http://localhost:11434/api/chat")
 MODEL = "qwen2.5:1.5b"
 
 

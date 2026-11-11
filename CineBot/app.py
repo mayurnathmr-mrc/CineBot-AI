@@ -23,11 +23,24 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", os.getenv("OLLAMA_PROXY_URL", "http://localhost:11434/api/chat")).rstrip("/")
-OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "")
+# Ollama connection settings.
+# Render: set OLLAMA_URL and OLLAMA_TAGS_URL to the Cloudflare gateway,
+# and OLLAMA_API_KEY to the same secret as OLLAMA_PROXY_TOKEN on the laptop.
+# Local development defaults to Ollama on this computer.
+OLLAMA_URL = os.getenv(
+    "OLLAMA_URL",
+    os.getenv("OLLAMA_PROXY_URL", "http://127.0.0.1:11434/api/chat")
+).strip().rstrip("/")
+if not OLLAMA_URL.endswith("/api/chat"):
+    OLLAMA_URL += "/api/chat"
+
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", os.getenv("OLLAMA_PROXY_TOKEN", "")).strip()
 OLLAMA_HEADERS = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
-OLLAMA_TAGS_URL = os.getenv("OLLAMA_TAGS_URL", OLLAMA_URL.rsplit("/api/chat", 1)[0] + "/api/tags")
-MODEL = "qwen2.5:1.5b"
+OLLAMA_TAGS_URL = os.getenv(
+    "OLLAMA_TAGS_URL",
+    OLLAMA_URL.rsplit("/api/chat", 1)[0] + "/api/tags"
+).strip().rstrip("/")
+MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b").strip()
 
 
 # ==========================================
@@ -678,29 +691,39 @@ with st.sidebar:
 
     st.markdown("##### CONNECTION")
 
-        try:
-            connection = requests.get(
-                OLLAMA_TAGS_URL,
-                headers=OLLAMA_HEADERS,
-                timeout=10
+    try:
+        connection = requests.get(
+            OLLAMA_TAGS_URL,
+            headers=OLLAMA_HEADERS,
+            timeout=(5, 12)
+        )
+        connection.raise_for_status()
+        installed_models = [
+            item.get("name", "")
+            for item in connection.json().get("models", [])
+        ]
+        model_available = any(
+            name == MODEL or name.split(":")[0] == MODEL.split(":")[0]
+            for name in installed_models
+        )
+        st.success("Ollama gateway connected")
+        if model_available:
+            st.success(f"Model available: {MODEL}")
+        else:
+            st.warning(
+                f"Gateway is reachable, but {MODEL} was not found. "
+                "Check the model name on the Ollama computer."
             )
+    except requests.exceptions.Timeout:
+        st.error("Ollama gateway timed out. Check that the laptop and Cloudflare Tunnel are running.")
+    except requests.exceptions.HTTPError as error:
+        status = error.response.status_code if error.response is not None else "unknown"
+        st.error(f"Ollama gateway returned HTTP {status}. Check the gateway token and URL.")
+    except requests.exceptions.RequestException:
+        st.error("Ollama gateway is unreachable. The website is running, but its AI computer is not reachable.")
+    except (ValueError, TypeError):
+        st.error("Ollama gateway returned an unreadable model list.")
 
-            if connection.status_code == 200:
-                installed_models = [
-                    model["name"]
-                    for model in connection.json().get("models", [])
-                ]
-
-                if MODEL in installed_models:
-                    st.success("Ollama connected")
-                    st.success("Model available")
-                else:
-                    st.warning("Configured model not found")
-            else:
-                st.error("Ollama unavailable")
-
-        except requests.exceptions.RequestException:
-            st.error("Ollama connection failed")
     if TAVILY_API_KEY:
         st.success("Internet research ready")
     else:
@@ -717,7 +740,7 @@ with st.sidebar:
         current_chat["title"] = "New conversation"
         st.rerun()
 
-    st.caption("CINEBOT AI · LOCAL EDITION")
+    st.caption("CINEBOT AI · FILMMAKING WORKSPACE")
 
 
 # ==========================================
@@ -739,7 +762,7 @@ with header_right:
 
     st.markdown(
         '<div style="text-align:right;color:#A99AE2;'
-        'font-size:11px;">LOCAL AI</div>',
+        'font-size:11px;">OLLAMA AI</div>',
         unsafe_allow_html=True
     )
 
@@ -1112,24 +1135,45 @@ if user_input:
 
             try:
                 response = requests.post(
-    OLLAMA_URL,
-    json={
-        "model": MODEL,
-        "messages": ollama_messages,
-        "stream": False
-    },
-    headers=OLLAMA_HEADERS,
-    timeout=240
-)
-
+                    OLLAMA_URL,
+                    json={
+                        "model": MODEL,
+                        "messages": ollama_messages,
+                        "stream": False
+                    },
+                    headers=OLLAMA_HEADERS,
+                    timeout=(10, 300)
+                )
                 response.raise_for_status()
-                answer = response.json()["message"]["content"]
+                payload = response.json()
+                answer = payload.get("message", {}).get("content", "").strip()
+                if not answer:
+                    raise ValueError("The model returned an empty response.")
 
-            except requests.exceptions.RequestException as error:
+            except requests.exceptions.Timeout:
                 answer = (
-                    "CineBot could not connect to Ollama.\n\n"
-                    "Please check whether Ollama is running.\n\n"
-                    f"Technical details: {error}"
+                    "CineBot's AI connection timed out while generating a response. "
+                    "The web app is still running. Check that the laptop, Ollama, "
+                    "and Cloudflare Tunnel remain active, then try again."
+                )
+            except requests.exceptions.HTTPError as error:
+                status = error.response.status_code if error.response is not None else "unknown"
+                answer = (
+                    f"CineBot's Ollama gateway returned HTTP {status}. "
+                    "Check the Render OLLAMA_URL, OLLAMA_TAGS_URL and OLLAMA_API_KEY "
+                    "environment variables, and make sure the token matches the laptop gateway."
+                )
+            except requests.exceptions.RequestException:
+                answer = (
+                    "CineBot cannot reach its Ollama gateway right now. "
+                    "The website is online, but the AI connection depends on the "
+                    "laptop, Ollama, and Cloudflare Tunnel being active."
+                )
+            except (ValueError, KeyError, TypeError):
+                answer = (
+                    "CineBot received an unexpected response from the language model. "
+                    "Please try again. If the problem continues, check the Ollama model "
+                    "and gateway logs."
                 )
 
             # Add verifiable source links to the answer and conversation history.

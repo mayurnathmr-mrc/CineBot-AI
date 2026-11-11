@@ -678,34 +678,29 @@ with st.sidebar:
 
     st.markdown("##### CONNECTION")
 
-    try:
+        try:
+            connection = requests.get(
+                OLLAMA_TAGS_URL,
+                headers=OLLAMA_HEADERS,
+                timeout=10
+            )
 
-connection = requests.get(
-    OLLAMA_TAGS_URL,
-    headers=OLLAMA_HEADERS,
-    timeout=10
-)
+            if connection.status_code == 200:
+                installed_models = [
+                    model["name"]
+                    for model in connection.json().get("models", [])
+                ]
 
-
-        if connection.status_code == 200:
-
-            installed_models = [
-                model["name"]
-                for model in connection.json().get("models", [])
-            ]
-
-            if MODEL in installed_models:
-                st.success("Ollama connected")
-                st.success("Model available")
+                if MODEL in installed_models:
+                    st.success("Ollama connected")
+                    st.success("Model available")
+                else:
+                    st.warning("Configured model not found")
             else:
-                st.warning("Configured model not found")
+                st.error("Ollama unavailable")
 
-        else:
-            st.error("Ollama unavailable")
-
-    except requests.exceptions.RequestException:
-        st.error("Ollama offline")
-
+        except requests.exceptions.RequestException:
+            st.error("Ollama connection failed")
     if TAVILY_API_KEY:
         st.success("Internet research ready")
     else:

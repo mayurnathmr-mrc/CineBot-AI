@@ -680,10 +680,12 @@ with st.sidebar:
 
     try:
 
-        connection = requests.get(
-            "http://localhost:11434/api/tags",
-            timeout=2
-        )
+connection = requests.get(
+    OLLAMA_TAGS_URL,
+    headers=OLLAMA_HEADERS,
+    timeout=10
+)
+
 
         if connection.status_code == 200:
 
